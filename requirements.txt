@@ -1,6 +1,5 @@
 # Telegram bot framework
 aiogram==3.13.1
-aiohttp>=3.9.0
 
 # Database
 sqlalchemy==2.0.36

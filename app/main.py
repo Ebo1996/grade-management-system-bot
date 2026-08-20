@@ -9,7 +9,6 @@ Run with:
 """
 import asyncio
 import sys
-from aiohttp import web
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
@@ -25,29 +24,9 @@ from app.database.connection import init_db
 from app.utils.logger import configure_logging, get_logger
 
 
-async def health_check(request: web.Request) -> web.Response:
-    """Simple health check endpoint for Render."""
-    return web.Response(text="OK")
-
-
-async def start_health_server() -> web.AppRunner:
-    """Start a minimal HTTP server so Render detects an open port."""
-    app = web.Application()
-    app.router.add_get("/", health_check)
-    app.router.add_get("/health", health_check)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", 10000)
-    await site.start()
-    return runner
-
-
 async def main() -> None:
     settings = get_settings()
 
-    # ------------------------------------------------------------------ #
-    # Logging                                                              #
-    # ------------------------------------------------------------------ #
     configure_logging(
         log_level=settings.log_level,
         environment=settings.environment,
@@ -59,22 +38,10 @@ async def main() -> None:
         log_level=settings.log_level,
     )
 
-    # ------------------------------------------------------------------ #
-    # Health check server (required for Render Web Service)               #
-    # ------------------------------------------------------------------ #
-    runner = await start_health_server()
-    logger.info("health_server_started", port=10000)
-
-    # ------------------------------------------------------------------ #
-    # Database                                                             #
-    # ------------------------------------------------------------------ #
     logger.info("connecting_to_database")
     await init_db()
     logger.info("database_ready")
 
-    # ------------------------------------------------------------------ #
-    # Bot & dispatcher                                                     #
-    # ------------------------------------------------------------------ #
     bot = Bot(
         token=settings.bot_token,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
@@ -83,24 +50,15 @@ async def main() -> None:
     storage = MemoryStorage()
     dp = Dispatcher(storage=storage)
 
-    # ------------------------------------------------------------------ #
-    # Middlewares                                                          #
-    # ------------------------------------------------------------------ #
     dp.update.outer_middleware(LoggingMiddleware())
     dp.update.outer_middleware(RateLimitMiddleware())
     dp.update.outer_middleware(AuthMiddleware())
 
-    # ------------------------------------------------------------------ #
-    # Routers                                                              #
-    # ------------------------------------------------------------------ #
     dp.include_router(start.router)
     dp.include_router(student.router)
     dp.include_router(teacher.router)
     dp.include_router(admin.router)
 
-    # ------------------------------------------------------------------ #
-    # Start polling                                                        #
-    # ------------------------------------------------------------------ #
     bot_info = await bot.get_me()
     logger.info(
         "bot_starting",
@@ -123,7 +81,6 @@ async def main() -> None:
     finally:
         logger.info("bot_stopping")
         await bot.session.close()
-        await runner.cleanup()
 
 
 if __name__ == "__main__":
