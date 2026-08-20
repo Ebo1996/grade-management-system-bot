@@ -330,6 +330,12 @@ grade-management-system-bot/
 
 ---
 
+## Author
+
+Built by **Ebisa Berhanu**
+
+---
+
 ## License
 
 MIT
