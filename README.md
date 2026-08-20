@@ -338,4 +338,4 @@ Built by **Ebisa Berhanu**
 
 ## License
 
-MIT
+MIT © [Ebisa Berhanu](https://github.com/Ebo1996)
