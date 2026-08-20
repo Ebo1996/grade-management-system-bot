@@ -46,3 +46,7 @@ Thumbs.db
 # Alembic
 # Keep migrations/ tracked, but not temporary files
 migrations/versions/__pycache__/
+
+# SQLite dev database (created during testing/migration generation)
+dev.db
+*.db
