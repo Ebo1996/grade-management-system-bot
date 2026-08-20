@@ -1,0 +1,72 @@
+version: "3.9"
+
+services:
+  # ---------------------------------------------------------- #
+  # PostgreSQL database                                          #
+  # ---------------------------------------------------------- #
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: student_results
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "5432:5432"   # Exposed for local dev tools; remove in production
+
+  # ---------------------------------------------------------- #
+  # Database migration runner (runs once on startup)            #
+  # ---------------------------------------------------------- #
+  migrate:
+    build: .
+    command: alembic upgrade head
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:password@db:5432/student_results
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  # ---------------------------------------------------------- #
+  # Telegram bot                                                 #
+  # ---------------------------------------------------------- #
+  bot:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:password@db:5432/student_results
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - ./logs:/app/logs
+
+  # ---------------------------------------------------------- #
+  # pgAdmin (development only — remove for production)          #
+  # ---------------------------------------------------------- #
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - db
+    profiles:
+      - dev   # Only started with: docker compose --profile dev up
+
+volumes:
+  postgres_data:
