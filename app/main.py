@@ -9,6 +9,7 @@ Run with:
 """
 import asyncio
 import sys
+from aiohttp import web
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
@@ -22,6 +23,23 @@ from app.bot.middlewares.rate_limit import RateLimitMiddleware
 from app.config import get_settings
 from app.database.connection import init_db
 from app.utils.logger import configure_logging, get_logger
+
+
+async def health_check(request: web.Request) -> web.Response:
+    """Simple health check endpoint for Render."""
+    return web.Response(text="OK")
+
+
+async def start_health_server() -> web.AppRunner:
+    """Start a minimal HTTP server so Render detects an open port."""
+    app = web.Application()
+    app.router.add_get("/", health_check)
+    app.router.add_get("/health", health_check)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", 10000)
+    await site.start()
+    return runner
 
 
 async def main() -> None:
@@ -42,6 +60,12 @@ async def main() -> None:
     )
 
     # ------------------------------------------------------------------ #
+    # Health check server (required for Render Web Service)               #
+    # ------------------------------------------------------------------ #
+    runner = await start_health_server()
+    logger.info("health_server_started", port=10000)
+
+    # ------------------------------------------------------------------ #
     # Database                                                             #
     # ------------------------------------------------------------------ #
     logger.info("connecting_to_database")
@@ -56,14 +80,11 @@ async def main() -> None:
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
 
-    # MemoryStorage is fine for MVP.
-    # For production with multiple workers, replace with RedisStorage.
     storage = MemoryStorage()
     dp = Dispatcher(storage=storage)
 
     # ------------------------------------------------------------------ #
     # Middlewares                                                          #
-    # (order matters — logging first, then rate-limit, then auth)
     # ------------------------------------------------------------------ #
     dp.update.outer_middleware(LoggingMiddleware())
     dp.update.outer_middleware(RateLimitMiddleware())
@@ -102,6 +123,7 @@ async def main() -> None:
     finally:
         logger.info("bot_stopping")
         await bot.session.close()
+        await runner.cleanup()
 
 
 if __name__ == "__main__":
