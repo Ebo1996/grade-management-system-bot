@@ -1,1 +1,1 @@
-worker: alembic upgrade head && python -m app.main
+worker: sh start.sh

@@ -47,6 +47,10 @@ async def main() -> None:
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
 
+    # Clear any stale webhook that would block long-polling
+    await bot.delete_webhook(drop_pending_updates=True)
+    logger.info("webhook_cleared")
+
     storage = MemoryStorage()
     dp = Dispatcher(storage=storage)
 
