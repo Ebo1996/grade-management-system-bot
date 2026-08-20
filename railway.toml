@@ -3,5 +3,4 @@ builder = "nixpacks"
 
 [deploy]
 startCommand = "alembic upgrade head && python -m app.main"
-restartPolicyType = "on_failure"
-restartPolicyMaxRetries = 3
+restartPolicyType = "always"
