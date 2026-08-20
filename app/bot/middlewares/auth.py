@@ -51,15 +51,19 @@ class AuthMiddleware(BaseMiddleware):
             return await handler(event, data)
 
         async with get_db_session() as session:
-            auth = AuthService(session)
-            user = await auth.get_or_create_user(
-                telegram_user_id=telegram_user.id,
-                username=telegram_user.username,
-                first_name=telegram_user.first_name,
-                last_name=telegram_user.last_name,
-            )
+            try:
+                auth = AuthService(session)
+                user = await auth.get_or_create_user(
+                    telegram_user_id=telegram_user.id,
+                    username=telegram_user.username,
+                    first_name=telegram_user.first_name,
+                    last_name=telegram_user.last_name,
+                )
 
-            data["db_session"] = session
-            data["current_user"] = user
+                data["db_session"] = session
+                data["current_user"] = user
 
-            return await handler(event, data)
+                return await handler(event, data)
+            except Exception as exc:
+                logger.error("auth_middleware_error", error=str(exc))
+                return await handler(event, data)

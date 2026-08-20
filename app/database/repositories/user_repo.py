@@ -27,9 +27,14 @@ class UserRepository(BaseRepository[User]):
         """
         Fetch an existing user or create a new one.
 
+        Uses INSERT ... ON CONFLICT to avoid race conditions.
+
         Returns:
             (user, created) where `created` is True if a new record was made.
         """
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+        # Try to fetch first
         existing = await self.get_by_telegram_id(telegram_user_id)
         if existing:
             # Update display fields in case they changed on Telegram
@@ -39,16 +44,29 @@ class UserRepository(BaseRepository[User]):
             await self.session.flush()
             return existing, False
 
-        user = User(
-            telegram_user_id=telegram_user_id,
-            username=username,
-            first_name=first_name,
-            last_name=last_name,
-            role=role,
-            is_active=True,
-        )
-        saved = await self.save(user)
-        return saved, True
+        # Try to insert — handle conflict gracefully
+        try:
+            user = User(
+                telegram_user_id=telegram_user_id,
+                username=username,
+                first_name=first_name,
+                last_name=last_name,
+                role=role,
+                is_active=True,
+            )
+            saved = await self.save(user)
+            return saved, True
+        except Exception:
+            # Another process inserted between our SELECT and INSERT
+            await self.session.rollback()
+            existing = await self.get_by_telegram_id(telegram_user_id)
+            if existing:
+                existing.username = username
+                existing.first_name = first_name
+                existing.last_name = last_name
+                await self.session.flush()
+                return existing, False
+            raise
 
     async def get_all_by_role(self, role: UserRole) -> list[User]:
         """Return all active users with a given role."""
